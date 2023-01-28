@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "instasim-kshop-email-processor"
+version = "0.1.0"
+description = ""
+authors = ["teesid <teesid@instasim.com>"]
+readme = "README.md"
+packages = [{include = "instasim_kshop_email_processor"}]
+
+[tool.poetry.dependencies]
+python = "^3.10.7"
+imapclient = "^2.3.1"
+zeep = "^4.2.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
