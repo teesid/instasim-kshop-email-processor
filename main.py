@@ -5,6 +5,7 @@ import time
 from imapclient import IMAPClient
 import os
 import email
+from email.header import decode_header
 import zeep
 
 DOUBLE_SIGINT_TIMEOUT = 5
@@ -14,11 +15,12 @@ PASSWORD = os.environ.get('GMAIL_APP_PASSWORD')
 MAIL_FROM = os.environ.get('MAIL_FROM')
 MAIL_TO = os.environ.get('MAIL_TO')
 PROCESSED_LABEL = 'Processed'
-GMAIL_FILTER = f'-label:{PROCESSED_LABEL} from:{MAIL_FROM} to:{MAIL_TO} has:attachment filename:csv'
+GMAIL_FILTER = f'in:inbox from:{MAIL_FROM} deliveredto:{MAIL_TO} has:attachment filename:csv'
+print(f"The gmail filter is '{GMAIL_FILTER}'")
 MAGENTO_SOAP_WSDL = os.environ.get('MAGENTO_SOAP_WSDL')
 MAGENTO_SOAP_USER = os.environ.get('MAGENTO_SOAP_USER')
 MAGENTO_SOAP_API_KEY = os.environ.get('MAGENTO_SOAP_API_KEY')
-_soapClient = zeep.CachingClient(MAGENTO_SOAP_WSDL)
+_soapClient = None
 
 
 def process_emails(client: IMAPClient, filter: str = ''):
@@ -36,12 +38,14 @@ def process_emails(client: IMAPClient, filter: str = ''):
                 if part.get('Content-Disposition') is None:
                     continue
                 filename = part.get_filename()
+                if decode_header(filename)[0][1] is not None:
+                    filename = decode_header(filename)[0][0].decode(decode_header(filename)[0][1])
                 if not filename.endswith('.csv'):
                     continue
                 print("Msg ID {msgid}, found csv file:", filename)
                 process_kshop_csv(part.get_payload(decode=True))
                 # Mark the emails as processed
-                client.add_gmail_labels((msgid,), PROCESSED_LABEL)
+                client.move([msgid], PROCESSED_LABEL)
     else:
         print('No new transactional emails found')
 
@@ -67,6 +71,17 @@ def process_kshop_csv(data: bytes):
         print('->', orderInfo)
         orderInfoList.append(orderInfo)
 
+    global _soapClient
+    if not _soapClient:
+        print('Initializing the SOAP client for the first time.  This could take a while.')
+        from zeep.cache import SqliteCache
+        from zeep.transports import Transport
+        _soapClient = zeep.CachingClient(
+            MAGENTO_SOAP_WSDL,
+            transport=Transport(
+                cache=SqliteCache(path='./zeep-cache.sqlite')
+            )
+        )
     # TODO:For now, we just simple mindedly re-log-in every time
     sessionId = _soapClient.service.login(username=MAGENTO_SOAP_USER, apiKey=MAGENTO_SOAP_API_KEY)
     print("Calling the kbankqrInvoiceMany() SOAP endpoint")
@@ -75,9 +90,16 @@ def process_kshop_csv(data: bytes):
 
 
 def main():
+    print('Connecting ...')
     client = IMAPClient(HOST)
+    print('Connected.  Logging in ...')
     client.login(USERNAME, PASSWORD)
+    print('Logged in, selecting INBOX ...')
     client.select_folder("INBOX")
+    # Check if the PROCESSED_LABEL folder exists, if not, create it
+    if not client.folder_exists(PROCESSED_LABEL):
+        print(f'Creating folder {PROCESSED_LABEL} to move the processed emails to')
+        client.create_folder(PROCESSED_LABEL)
     # Processing any new emails for the first time
     process_emails(client, GMAIL_FILTER)
 
@@ -126,7 +148,7 @@ if __name__ == '__main__':
             print('Got the 2nd KeyboardInterrupt, exiting ...')
             break
         except Exception as e:
-            print("main() died with exception:", e)
+            print(f'main() died with exception: {e}')
             print("Restarting main() in 5 seconds ...")
             time.sleep(5)
 
