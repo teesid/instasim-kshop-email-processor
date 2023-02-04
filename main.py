@@ -71,6 +71,10 @@ def process_kshop_csv(data: bytes):
         print('->', orderInfo)
         orderInfoList.append(orderInfo)
 
+    if not orderInfoList:
+        print('The list is empty.  Nothing to do.')
+        return
+
     global _soapClient
     if not _soapClient:
         print('Initializing the SOAP client for the first time.  This could take a while.')
