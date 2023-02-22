@@ -59,14 +59,23 @@ def process_kshop_csv(data: bytes):
 
     orderInfoList = []
     for row in reader:
+        if not row['Date Time']:
+            # Skip empty rows
+            continue
         print('Converted data from:', row)
+        # The "Paid" column changed to "Amount" on 2023-02-22
+        amount = None
+        if 'Paid' in row:
+            amount = row['Paid']
+        elif 'Amount' in row:
+            amount = row['Amount']
         orderInfo = {
             # Convert the trarnsaction id to order increment number
             # KPSORx20021182 -> OR-20021182
             # This is because the transaction id has to start with 'KPS' and '-' is not allowed in that field.
-            'increment_id': row['Transaction ID'].replace('KPSORx', 'OR-'),
-            'amount': row['Paid'],
-            'comment': f"KShop: {row['Date Time']}, {row['Paid']}, {row['From Account']} ({row['Source of Fund']})"
+            'increment_id': row['Original Transaction ID'].replace('KPSORx', 'OR-'),
+            'amount': amount,
+            'comment': f"KShop: {row['Date Time']}, {amount}, {row['From Account']} ({row['Source of Fund']})"
         }
         print('->', orderInfo)
         orderInfoList.append(orderInfo)
