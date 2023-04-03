@@ -71,9 +71,9 @@ def process_kshop_csv(data: bytes):
             amount = row['Amount']
         orderInfo = {
             # Convert the trarnsaction id to order increment number
-            # KPSORx20021182 -> OR-20021182
+            # KPSORx20021182x1 -> OR-20021182-1
             # This is because the transaction id has to start with 'KPS' and '-' is not allowed in that field.
-            'increment_id': row['Original Transaction ID'].replace('KPSORx', 'OR-'),
+            'increment_id': row['Original Transaction ID'].replace('KPSORx', 'OR-').replace('x', '-'),
             'amount': amount,
             'comment': f"KShop: {row['Date Time']}, {amount}, {row['From Account']} ({row['Source of Fund']})"
         }
