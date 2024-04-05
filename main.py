@@ -7,6 +7,7 @@ import os
 import email
 from email.header import decode_header
 import zeep
+import re
 
 DOUBLE_SIGINT_TIMEOUT = 5
 HOST = 'imap.gmail.com'
@@ -69,11 +70,17 @@ def process_kshop_csv(data: bytes):
             amount = row['Paid']
         elif 'Amount' in row:
             amount = row['Amount']
+
+        # Convert the trarnsaction id to order increment number.
+        # Note that the "x" is matche case insensitive, some banks (like Thai Credit) upcases everything.
+        # KPSORx20021182x1 -> OR-20021182-1
+        # KPSORX20021182X1 -> OR-20021182-1
+        # This is because the transaction id has to start with 'KPS' and '-' is not allowed in that field.
+        increment_id = re.sub(r'^KPSOR[xX]', r'OR-', row['Original Transaction ID'])
+        increment_id = re.sub(r'[xX]', '-', increment_id)
+
         orderInfo = {
-            # Convert the trarnsaction id to order increment number
-            # KPSORx20021182x1 -> OR-20021182-1
-            # This is because the transaction id has to start with 'KPS' and '-' is not allowed in that field.
-            'increment_id': row['Original Transaction ID'].replace('KPSORx', 'OR-').replace('x', '-'),
+            'increment_id': increment_id,
             'amount': amount,
             'comment': f"KShop: {row['Date Time']}, {amount}, {row['From Account']} ({row['Source of Fund']})"
         }
